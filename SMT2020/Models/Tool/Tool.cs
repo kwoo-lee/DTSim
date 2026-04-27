@@ -17,12 +17,12 @@ public class Tool(Fab fab, FabHistory hist, int id, string name, ToolType type, 
     #endregion [Attributes End]
 
     #region [Lots]
-    protected Dictionary<Lot, bool> AssignedLots { get; private set; } = new();
-    public List<Lot> StagedLots { get; private set; } = [];
-    public Lot? TrackingInLot { get; private set; } = null;
-    public List<Lot> LoadedLots { get; private set; } = [];
-    public Dictionary<Lot, SimTime> RunningLots { get; private set; } = new();
-    public Lot? TrackingOutLot { get; private set; } = null;
+    public Dictionary<Lot, bool> AssignedLots { get; private set; } = new();
+    protected List<Lot> StagedLots { get; private set; } = [];
+    protected Lot? TrackingInLot { get; private set; } = null;
+    protected List<Lot> LoadedLots { get; private set; } = [];
+    protected Dictionary<Lot, SimTime> RunningLots { get; private set; } = new();
+    protected Lot? TrackingOutLot { get; private set; } = null;
 
     //protected LoadPort? NextTrackInPort = null;
     protected SimTime nextRunnableTime;
@@ -174,6 +174,8 @@ public class Tool(Fab fab, FabHistory hist, int id, string name, ToolType type, 
     protected LoadPort GetPortHavingEmptyFoup() =>
         Ports.First(p => p.Foup != null && p.Foup.Lot == null);
 
+    public LoadPort GetEmptyPort() =>
+        Ports.First(p => p.Foup == null && p.ReservedFoup == null);
     // protected Foup GetEmptyFoup()
     // {
     //     var port = GetPortHavingEmptyFoup();

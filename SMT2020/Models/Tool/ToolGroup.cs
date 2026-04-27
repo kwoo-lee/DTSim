@@ -11,9 +11,9 @@ public class ToolGroup(int id, string name, AreaType areaType, ToolType toolType
     public ProcessingUnit ProcessingUnit { get; private set; } = processingUnit;
     public double LoadingTime { get; } = loadingTime;
     public double UnloadingTiem { get; } = unloadingTime;
+    public string Location { get; private set; } = "";
     public DispatchingRuleSet DispatchingRuleSet { get; private set; } = new(DispatchingRuleType.FIFO);
     public List<Tool> Tools { get; } = [];
-    public List<List<Lot>> AssignLots { get; } = [];
     public List<Lot> LotQueue { get; } = [];
     #endregion [Attributes End]
 
@@ -26,14 +26,14 @@ public class ToolGroup(int id, string name, AreaType areaType, ToolType toolType
                 new LoadPort(fab, fabHistory, j, tool.Name + $"_{j}", tool);
 
             Tools.Add(tool);
-            AssignLots.Add([]);
         }
     }
 
     public void SetDispatchingRule(DispatchingRuleSet ruleSet) =>
         DispatchingRuleSet = ruleSet;
 
-
+    public void SetLocation(string location) =>
+        Location = location;
     // public List<Down> Downs { get; private set; }
     // private Breakdown _breakdown;
     // private BatchRule _batchRule;

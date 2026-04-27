@@ -23,7 +23,7 @@ public class LotRelease(Fab fab, FabHistory hist, int id, string name, Dictionar
                 var arrivalTime = new SimTime((plan.StartDateTime - Sim.StartDateTime).TotalSeconds);
                 Sim.Delay(arrivalTime, new List<Action>() { () => { ReleaseByPlan(plan); } });
 
-                //break; // Temp
+                break; // Temp
             }
 
             break; // Temp

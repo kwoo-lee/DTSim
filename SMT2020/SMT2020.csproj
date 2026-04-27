@@ -15,4 +15,8 @@
     <PackageReference Include="ClosedXML" Version="0.104.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="SMT2020.Test" />
+  </ItemGroup>
+
 </Project>

@@ -28,9 +28,46 @@ public class Fab : Simulation
 
         using var workbook = new XLWorkbook(excelPath);
 
-        this.LoadToolGroups(workbook);
-        this.LoadLotRelease(workbook);
-        this.LoadRoutes(workbook);
+        // Order Sensitive
+        LoadTransports(workbook); 
+        LoadToolGroups(workbook);
+        LoadLotRelease(workbook);
+        LoadRoutes(workbook);
+    }
+
+    private void LoadTransports(XLWorkbook workbook)
+    {
+        if (!workbook.TryGetWorksheet("Transport", out var sheet))
+        {
+            LogHandler.Error("'Transport' sheet not found");
+            return;
+        }
+
+        foreach (var row in sheet.RangeUsed().RowsUsed().Skip(1))
+        {
+            string from = row.Cell(1).GetString().Trim();
+            string to   = row.Cell(2).GetString().Trim();
+            if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to))
+                continue;
+
+            string distStr = row.Cell(3).GetString().Trim();
+            double mean    = row.Cell(4).GetDouble();
+            double offset  = row.Cell(5).TryGetValue(out double offVal) ? offVal : 0;
+            string units   = row.Cell(6).GetString();
+
+            double meanSec   = ToTimeSpan(mean, units);
+            double offsetSec = offset > 0 ? ToTimeSpan(offset, units) : 0;
+
+            DistributionType distType = DistributionType.Constant;
+            if (!string.IsNullOrEmpty(distStr))
+                Enum.TryParse(distStr, ignoreCase: true, out distType);
+
+            Distribution dist = Statistics.GetDistribution(distType, meanSec, offsetSec);
+
+            MES.Locations.Add(from);
+            MES.Locations.Add(to);
+            MES.TransportTimes[(from, to)] = dist;
+        }
     }
 
     private void LoadToolGroups(XLWorkbook workbook)
@@ -77,8 +114,17 @@ public class Fab : Simulation
                 _ => ProcessingUnit.Lot,
             };
 
+            if (string.IsNullOrEmpty(location))
+                throw new InvalidDataException(
+                    $"Toolgroup '{toolGroupName}' has no LOCATION value (column 12)");
+            if (!MES.Locations.Contains(location))
+                throw new InvalidDataException(
+                    $"Toolgroup '{toolGroupName}' location '{location}' is not declared in the Transport sheet. " +
+                    $"Known locations: [{string.Join(", ", MES.Locations)}]");
+
             var toolGroup = new ToolGroup(MES.ToolGroups.Count, toolGroupName, areaType, toolType, processingUnit, loadingTime, unloadingTime);
             toolGroup.SetDispatchingRule(ParseDispatchingRuleSet(rank1Rule, rank2Rule, rank3Rule));
+            toolGroup.SetLocation(location);
             MES.AddToolGroup(toolGroup, numberOfTools);
         }
     }

@@ -14,7 +14,6 @@ public class Lot(int id, string name, string productName, Route route, int wafer
     public SimTime StartTime { get; private set; } = startTime;
     public SimTime DueTime { get; private set; } = endTime;
     public LotStatus State { get; set; }
-    
     public SimTime EnqueueTime{get; set;}
     public SimTime EstimatedProcessEndTime {get;set;}
     public SimTime ProcessStartTime{get; set;}

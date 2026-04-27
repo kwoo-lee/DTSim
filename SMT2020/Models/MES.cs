@@ -8,15 +8,19 @@ public class MES(Fab fab, FabHistory hist, int id, string name) : SimNode<Fab, F
     private IDispatcher dispatcher = new Dispatcher();
 
     #region [Manufacturing Information]
-    public List<string> Products { get; private set; } = [];
-    public Dictionary<string, Route> Routes { get; private set; } = new ();
-    public List<ToolGroup> ToolGroups { get; private set; } = [];
-    public List<Tool> Tools { get; private set; } = [];
-    public List<LoadPort> LoadPorts {get; } = [];
-    public Dictionary<string, ToolGroup> ToolGroupByName { get; private set; } = new ();
-    #endregion 
+    public List<string> Products { get;  set; } = [];
+    public Dictionary<string, Route> Routes { get;  } = new ();
+    public List<ToolGroup> ToolGroups { get;  set; } = [];
+    public Dictionary<string, ToolGroup> ToolGroupByName { get;  set; } = new ();
 
-    public List<List<Lot>> AssignedLots { get;} = [];
+    /// <summary>Set of valid location names — populated from Transport sheet (FROM ∪ TO).</summary>
+    public HashSet<string> Locations { get; } = new();
+
+    /// <summary>Transport-time distribution per (FROM, TO) pair, in seconds.</summary>
+    
+    #endregion
+
+    private Transport transport;
     public List<int> dispatchToolGroups = new List<int>();
     public double dispatchDelay = 1;
 
@@ -36,8 +40,10 @@ public class MES(Fab fab, FabHistory hist, int id, string name) : SimNode<Fab, F
 
     public void SendLotToNextStep(Foup foup)
     {
-        Lot lot = foup.Lot;
+        if(foup.Lot is null)
+            throw new Exception($"SendLotToNextStep: Empty Foup");
 
+        Lot lot = foup.Lot;
         if (lot.StepIndex == -1) // Fab In
         {
             lot.StepIndex++;
@@ -134,7 +140,7 @@ public class MES(Fab fab, FabHistory hist, int id, string name) : SimNode<Fab, F
 
     }
 
-    public void Dispatch()
+    private void Dispatch()
     {
         for(int i = 0; i < dispatchToolGroups.Count; i++)
         {
@@ -142,7 +148,22 @@ public class MES(Fab fab, FabHistory hist, int id, string name) : SimNode<Fab, F
             ToolGroup toolGroup = ToolGroups[id];
 
             Dictionary<Tool, List<Lot>> results = dispatcher.Do(Sim.Now, toolGroup);
-            //toolGroup.AssignLots()
+            foreach(var (tool, lots) in results)
+            {
+                foreach(var lot in lots)
+                {
+                    tool.AssignedLots[lot] = false;
+                    var emptyPort = tool.GetEmptyPort();
+
+                    if(lot.CurrentFoup == null)
+                        throw new Exception($"Lot without Foup: {lot.Name} | {lot.CurrentStep.Description} | {toolGroup.Name}");
+                    
+                    emptyPort.Reserve(lot.CurrentFoup);
+                    transport.Entities.Add(lot.CurrentFoup);
+                    transport.Delivery()
+                    Sim.Delay()
+                }
+            }
         }
 
         dispatchToolGroups.Clear();

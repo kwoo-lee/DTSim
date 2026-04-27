@@ -17,6 +17,7 @@ public class Dispatcher : IDispatcher
     }
 
     /// <summary>
+    /// 
     /// 기본 단일-Lot 디스패칭 로직.
     /// 1. 가용 Tool 선별 (Breakdown/PM 제외)
     /// 2. LotQueue를 DispatchingRuleSet(Main→Ranking1→2→3)으로 정렬
@@ -31,7 +32,7 @@ public class Dispatcher : IDispatcher
 
         // 가용 Tool: Breakdown/PM이 아닌 것, 현재 Track-In 중이지 않은 것
         var availTools = toolGroup.Tools
-            .Where(t => t.State is not (ToolState.Breakdown or ToolState.PM))
+            .Where(t => t.State is not (ToolState.Breakdown or ToolState.PM) && t.AssignedLots.Count < t.Ports.Count)
             .ToList();
 
         if (availTools.Count == 0)

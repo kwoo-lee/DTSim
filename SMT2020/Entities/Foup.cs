@@ -7,6 +7,7 @@ public class Foup(int id, string name) : SimObject (id, name)
 {
     public Lot? Lot { get; private set; }
     public ISimNode? CurrentNode { get; private set; }
+    public string CurrentLocation { get; set; }
 
     public void LoadLot(Lot lot)
     {
