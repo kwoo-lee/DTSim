@@ -1,6 +1,6 @@
 namespace SharpSim;
 
-public struct SimTime : IComparable, IEquatable<SimTime>
+public struct SimTime : IComparable, IEquatable<SimTime>, IFormattable
 {
     private long _value; // Milliseconds
     public readonly double TotalDays    => ToDay();
@@ -74,7 +74,7 @@ public struct SimTime : IComparable, IEquatable<SimTime>
     #region [Casting Operator]
     public static explicit operator double(SimTime time)   => time.ToSecond();
     public static explicit operator float(SimTime time)    => (float)time.ToSecond();
-    public static explicit operator TimeSpan(SimTime time) => new TimeSpan(0, 0, 0, 0, (int)time._value);
+    public static explicit operator TimeSpan(SimTime time) => TimeSpan.FromMilliseconds(time._value);
     public static explicit operator DateTime(SimTime time) => new DateTime() + (TimeSpan)time;
 
     public static implicit operator SimTime(double d)       => new SimTime(d);
@@ -113,7 +113,12 @@ public struct SimTime : IComparable, IEquatable<SimTime>
 
     public string ToString(string format)
     {
-        return ((DateTime)new SimTime(_value)).ToString(format);
+        return ToSecond().ToString(format);
+    }
+
+    public string ToString(string? format, IFormatProvider? formatProvider)
+    {
+        return ToSecond().ToString(format, formatProvider);
     }
     #endregion [Interface Implementation]
 

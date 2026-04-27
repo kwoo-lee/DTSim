@@ -5,7 +5,7 @@ public class Uniform : Distribution
     {
         this.Min = min;
         this.Max = max;
-        this.Mean = (max - min) / 2;
+        this.Mean = (max + min) / 2;
     }
 
     public override double GetNumber()
