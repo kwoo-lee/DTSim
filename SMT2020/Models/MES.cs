@@ -5,26 +5,23 @@ namespace SMT2020;
 public class MES(Fab fab, FabHistory hist, int id, string name) : SimNode<Fab, FabHistory>(fab, hist, id, name)
 {
     private Random r = new Random();
-    private IDispatcher dispatcher = new Dispatcher();
 
-    #region [Manufacturing Information]
+#region [Manufacturing Information]
     public List<string> Products { get;  set; } = [];
     public Dictionary<string, Route> Routes { get;  } = new ();
     public List<ToolGroup> ToolGroups { get;  set; } = [];
     public Dictionary<string, ToolGroup> ToolGroupByName { get;  set; } = new ();
+#endregion [Manufacturing Information End]
 
-    /// <summary>Set of valid location names — populated from Transport sheet (FROM ∪ TO).</summary>
-    public HashSet<string> Locations { get; } = new();
+#region [Dispatch]
+    private IDispatcher dispatcher = new Dispatcher();
+    private List<int> dispatchToolGroups = [];
+    private double dispatchDelay = 1;
+#endregion [Dispatch End]
 
-    /// <summary>Transport-time distribution per (FROM, TO) pair, in seconds.</summary>
-    
-    #endregion
+    public List<Lot> FabOutLots { get; } = [];
 
-    private Transport transport;
-    public List<int> dispatchToolGroups = new List<int>();
-    public double dispatchDelay = 1;
-
-    #region [Initialize]
+#region [Initialize]
     public void AddToolGroup(ToolGroup toolGroup, int numberOfTools)
     {
         ToolGroups.Add(toolGroup);
@@ -36,19 +33,14 @@ public class MES(Fab fab, FabHistory hist, int id, string name) : SimNode<Fab, F
             toolGroup.AddTool(Sim, History, numberOfTools);
         }
     }
-    #endregion
+#endregion
 
-    public void SendLotToNextStep(Foup foup)
+    public void SendLotToNextStep(Lot lot)
     {
-        if(foup.Lot is null)
-            throw new Exception($"SendLotToNextStep: Empty Foup");
-
-        Lot lot = foup.Lot;
         if (lot.StepIndex == -1) // Fab In
         {
             lot.StepIndex++;
-            //NewLot(lot);
-            //_foups.Add(foup.Name, foup);
+            //NewLot(ㅇㅇlot);
         }
         else
         {
@@ -80,37 +72,33 @@ public class MES(Fab fab, FabHistory hist, int id, string name) : SimNode<Fab, F
 
         if (lot.Route.Count > lot.StepIndex) // Next Step
         {
-            LogHandler.Info($"{Sim.Now, -11:F1} | {this.Name, -8} | {lot.Name} | ({lot.CurrentStep.Order}){lot.CurrentStep.Description}");
             Step nextStep = lot.CurrentStep;
             ToolGroup nextTG = nextStep.ToolGroup;
 
+            LogHandler.Debug($"{Sim.Now, -11:F1} | {this.Name, -21} | {lot.Name, -21} | ({nextStep.Order}){nextStep.Description}");
+            
             double samplingPct = r.NextDouble();
             if(samplingPct > nextStep.ProcessingProbability)
             {
-                SendLotToNextStep(foup);
+                SendLotToNextStep(lot); // Skip the current Step
                 return;
             }
 
             if (nextTG.Name == "Delay_32")
             {
                 double delayTime = nextStep.ProcessingTime.GetNumber();
-                Sim.Delay(delayTime, new List<Action>() { () => { SendLotToNextStep(foup); } });
+                Sim.Delay(delayTime, new List<Action>() { () => { SendLotToNextStep(lot); } });
                 return;
             }
 
             nextTG.LotQueue.Add(lot);
             if(!dispatchToolGroups.Contains(nextTG.Id))
             {
-                if(dispatchToolGroups.Count == 0)
+                if(dispatchToolGroups.Count == 0) 
                     Sim.Delay(dispatchDelay, [() => { Dispatch(); }]);
 
                 dispatchToolGroups.Add(nextTG.Id);
             }
-
-            // ------ Temporary Test ------ 
-            // double processingTime = nextStep.ProcessingTime.GetNumber();
-            // Sim.Delay(processingTime, new List<Action>() { () => { SendLotToNextStep(foup); } });
-            // ---------------------------- 
             
             // TBDs
             // StartStep(timeNow, lot, nextStep);
@@ -120,7 +108,8 @@ public class MES(Fab fab, FabHistory hist, int id, string name) : SimNode<Fab, F
         }
         else // Finish. Go To Complete
         {
-            LogHandler.Info($"{Sim.Now, -11:F1} | {this.Name, -8} | {lot.Name} | FabOut");
+            LogHandler.Debug($"{Sim.Now, -11:F1} | {this.Name, -21} | {lot.Name, -21} | FabOut");
+            FabOutLots.Add(lot);
             System.Console.WriteLine(lot.Route.TotalProcessingTime);
 
             // TBDs
@@ -129,13 +118,19 @@ public class MES(Fab fab, FabHistory hist, int id, string name) : SimNode<Fab, F
         }
     }
 
-    private void ProceedToNextStep(Foup foup)
+    public void RequestNextLot(Tool tool)
     {
+        ToolGroup toolGroup = tool.ToolGroup;
+        if(toolGroup.LotQueue.Count > 0)
+        {
+            if(!dispatchToolGroups.Contains(toolGroup.Id))
+            {
+                if(dispatchToolGroups.Count == 0) 
+                    Sim.Delay(dispatchDelay, [() => { Dispatch(); }]);
 
-    }
-
-    public void RequestNextLot(Tool Tool)
-    {
+                dispatchToolGroups.Add(toolGroup.Id);
+            }
+        }
         // Send Assigned Lots to Tool's Loadport
 
     }
@@ -152,16 +147,9 @@ public class MES(Fab fab, FabHistory hist, int id, string name) : SimNode<Fab, F
             {
                 foreach(var lot in lots)
                 {
-                    tool.AssignedLots[lot] = false;
-                    var emptyPort = tool.GetEmptyPort();
-
-                    if(lot.CurrentFoup == null)
-                        throw new Exception($"Lot without Foup: {lot.Name} | {lot.CurrentStep.Description} | {toolGroup.Name}");
-                    
-                    emptyPort.Reserve(lot.CurrentFoup);
-                    transport.Entities.Add(lot.CurrentFoup);
-                    transport.Delivery()
-                    Sim.Delay()
+                    tool.AssignLot(lot);
+                    toolGroup.LotQueue.Remove(lot);
+                    Sim.Transport.Delivery(toolGroup.Location, tool, lot);
                 }
             }
         }

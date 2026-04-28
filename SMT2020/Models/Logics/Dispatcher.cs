@@ -32,7 +32,7 @@ public class Dispatcher : IDispatcher
 
         // 가용 Tool: Breakdown/PM이 아닌 것, 현재 Track-In 중이지 않은 것
         var availTools = toolGroup.Tools
-            .Where(t => t.State is not (ToolState.Breakdown or ToolState.PM) && t.AssignedLots.Count < t.Ports.Count)
+            .Where(t => t.State is not (ToolState.Breakdown or ToolState.PM) && !t.IsReserved)
             .ToList();
 
         if (availTools.Count == 0)

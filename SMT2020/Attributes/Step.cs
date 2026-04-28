@@ -9,21 +9,18 @@ public class Step(int order, string description, ToolGroup toolGroup, Processing
     public ToolGroup ToolGroup { get; } = toolGroup;
     public ProcessingUnit ProcessingUnit { get; } = processingUnit;
     public Distribution ProcessingTime { get; private set; } = new Const(0);
-    public Distribution? CascadingInterval { get; private set; }
+    public Distribution CascadingInterval { get; private set; } = new Const(0);
     public double ProcessingProbability { get; private set; } = 100.0;
     public int BatchMinimum { get; private set; }
     public int BatchMaximum { get; private set; }
     public SetUp? SetUp { get; private set; }
-
     public uint StepForLTLDedication { get; private set; }
-
     public double ReworkProbability { get; private set; }
     public uint StepForRework { get; private set; }
-
     public uint StepForCriticalQueueTime { get; private set; }
     public Distribution? CriticalQueueTime { get; private set; }
 
-    public void SetProcessingTime(Distribution processingTime, Distribution? cascadingInterval, double processingProbability)
+    public void SetProcessingTime(Distribution processingTime, Distribution cascadingInterval, double processingProbability)
     {
         ProcessingTime = processingTime;
         CascadingInterval = cascadingInterval;

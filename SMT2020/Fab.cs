@@ -1,5 +1,3 @@
-using System.Data;
-using System.Linq;
 using ClosedXML.Excel;
 using SharpSim;
 
@@ -9,12 +7,25 @@ public class Fab : Simulation
 {
     public FabHistory History { get; set; } = new FabHistory();
     public MES MES { get; private set; }
-    public int LastLotId = 0;
+    public Transport Transport { get; private set; }
+    public LotRelease LotRelease { get; private set; }
     public DateTime StartDateTime { get; private set; } = DateTime.MaxValue;
 
     public Fab(IEventList eventList) : base(eventList)
     {
         MES = new MES(this, History, Nodes.Count, "MES");
+        Transport = new Transport(this, History, Nodes.Count, "Transport");
+        LotRelease = new LotRelease(this, History, this.Nodes.Count, "LotRelease");
+        LotRelease.SetLocation("Fab");
+    }
+
+    public override void Run(SimTime endOfSimulation)
+    {
+        base.Run(endOfSimulation);
+
+        LogHandler.Info($"====================================");
+        LogHandler.Info($"TOTAL FABIN : {LotRelease.LastLotId}");
+        LogHandler.Info($"TOTAL FABOUT: {MES.FabOutLots.Count}");
     }
 
 #region [Load Data]
@@ -64,9 +75,9 @@ public class Fab : Simulation
 
             Distribution dist = Statistics.GetDistribution(distType, meanSec, offsetSec);
 
-            MES.Locations.Add(from);
-            MES.Locations.Add(to);
-            MES.TransportTimes[(from, to)] = dist;
+            Transport.Locations.Add(from);
+            Transport.Locations.Add(to);
+            Transport.DeliveryTimes[(from, to)] = dist;
         }
     }
 
@@ -117,14 +128,17 @@ public class Fab : Simulation
             if (string.IsNullOrEmpty(location))
                 throw new InvalidDataException(
                     $"Toolgroup '{toolGroupName}' has no LOCATION value (column 12)");
-            if (!MES.Locations.Contains(location))
+            if (toolGroupName != "Delay_32" && !Transport.Locations.Contains(location))
                 throw new InvalidDataException(
                     $"Toolgroup '{toolGroupName}' location '{location}' is not declared in the Transport sheet. " +
-                    $"Known locations: [{string.Join(", ", MES.Locations)}]");
+                    $"Known locations: [{string.Join(", ", Transport.Locations)}]");
 
             var toolGroup = new ToolGroup(MES.ToolGroups.Count, toolGroupName, areaType, toolType, processingUnit, loadingTime, unloadingTime);
             toolGroup.SetDispatchingRule(ParseDispatchingRuleSet(rank1Rule, rank2Rule, rank3Rule));
             toolGroup.SetLocation(location);
+
+            // if(toolGroupName == "Diffusion_FE_120")
+            //     numberOfTools = 1;
             MES.AddToolGroup(toolGroup, numberOfTools);
         }
     }
@@ -313,7 +327,7 @@ public class Fab : Simulation
                 if(planByRoute[routeName].Count > 0)
                     planByRoute[routeName].RemoveAll(p => p.Priority == priority);
 
-                var lot = new Lot(++LastLotId, lotName, productName, MES.Routes[routeName], priority, wafersPerLot, startTime, dueTime);
+                var lot = new Lot(++LotRelease.LastLotId, lotName, productName, MES.Routes[routeName], priority, wafersPerLot, startTime, dueTime);
                 lotListByRoute[routeName].Add(lot);
             }           
         }
@@ -334,7 +348,7 @@ public class Fab : Simulation
                 SimTime startTime = startDate - this.StartDateTime;
                 SimTime dueTime = dueDate - this.StartDateTime;
 
-                var lot = new Lot(++LastLotId, lotName, productName, MES.Routes[routeName], priority, wafersPerLot, startTime, dueTime);
+                var lot = new Lot(++LotRelease.LastLotId, lotName, productName, MES.Routes[routeName], priority, wafersPerLot, startTime, dueTime);
                 lotListByRoute[routeName].Add(lot);
             }         
         }
@@ -343,7 +357,8 @@ public class Fab : Simulation
             lots.Sort((a, b) => a.StartTime.CompareTo(b.StartTime));
 
         // Finally, Generate LotRelease Node. 
-        new LotRelease(this, History, this.Nodes.Count, "LotRelease", planByRoute, lotListByRoute);
+        LotRelease.SetReleasePlan(planByRoute);
+        LotRelease.SetFutureLotList(lotListByRoute);
     }
 #endregion [Load Data End]
     private static double ToTimeSpan(double value, string units)

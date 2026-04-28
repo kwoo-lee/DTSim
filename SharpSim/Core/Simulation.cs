@@ -36,7 +36,7 @@ public class Simulation : ISimulation
         evtList.Add(evt);
     }
 
-    public void Run(SimTime endOfSimulation)
+    public virtual void Run(SimTime endOfSimulation)
     {
         foreach (var node in Nodes)
         {

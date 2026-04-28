@@ -22,9 +22,6 @@ public class ToolGroup(int id, string name, AreaType areaType, ToolType toolType
         for (int i = 0; i < numberOfTools; i++)
         {
             var tool = new Tool(fab, fabHistory, Tools.Count, Name + $"_{i}", Toolype, this);
-            for (int j = 0; j < 4; j++)
-                new LoadPort(fab, fabHistory, j, tool.Name + $"_{j}", tool);
-
             Tools.Add(tool);
         }
     }
@@ -34,6 +31,7 @@ public class ToolGroup(int id, string name, AreaType areaType, ToolType toolType
 
     public void SetLocation(string location) =>
         Location = location;
+        
     // public List<Down> Downs { get; private set; }
     // private Breakdown _breakdown;
     // private BatchRule _batchRule;

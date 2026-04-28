@@ -6,25 +6,21 @@ namespace SMT2020;
 /// This is tool for Table Type & Cascading
 /// </summary>
 public class Tool(Fab fab, FabHistory hist, int id, string name, ToolType type, ToolGroup toolGroup)
-    : SimNode<Fab, FabHistory>(fab, hist, id, name), IPortTool
+    : SimNode<Fab, FabHistory>(fab, hist, id, name)
 {    
     #region [Attributes]
     protected double LoadingTime = toolGroup.LoadingTime;
     protected double UnloadingTime = toolGroup.UnloadingTiem;
-    protected ToolType Type = type;
+    public ToolType Type {get; private set;} =  type;
     public ToolGroup ToolGroup { get; private set; } = toolGroup;
-    public List<LoadPort> Ports {get; private set;} = [];
     #endregion [Attributes End]
 
     #region [Lots]
-    public Dictionary<Lot, bool> AssignedLots { get; private set; } = new();
+    public bool IsReserved { get; private set;} = false;
+    public List<Lot> AssignedLots {get; private set;} = [];
     protected List<Lot> StagedLots { get; private set; } = [];
-    protected Lot? TrackingInLot { get; private set; } = null;
-    protected List<Lot> LoadedLots { get; private set; } = [];
     protected Dictionary<Lot, SimTime> RunningLots { get; private set; } = new();
-    protected Lot? TrackingOutLot { get; private set; } = null;
-
-    //protected LoadPort? NextTrackInPort = null;
+    protected List<Lot> FinishedLots { get; private set; } = [];
     protected SimTime nextRunnableTime;
     #endregion [Lots End]
 
@@ -57,40 +53,38 @@ public class Tool(Fab fab, FabHistory hist, int id, string name, ToolType type, 
     #endregion
 
     #region [Events]
-    public virtual void LotStage(LoadPort port, Lot lot)   
+    public virtual void AssignLot(Lot lot)
     {
-        StagedLots.Add(lot);
-        if((Sim.Now + this.LoadingTime > nextRunnableTime) && !IsLotLoading())
-            TrackInStart(port, lot);
+        this.IsReserved = true;
+        AssignedLots.Add(lot);
     }
 
-    protected virtual void TrackInStart(LoadPort port, Lot lot)
+    public virtual void LoadStart(Transport transport, Lot lot)
     {
-        TrackingInLot = lot;
-        Sim.Delay(this.LoadingTime, new List<Action>() { () => { TrackInFinish(port, lot); }});
+        LogHandler.Debug($"{Sim.Now, -11:F1} | {this.Name, -21} | {lot.Name, -21} | LoadStart");
+        Sim.Delay(this.LoadingTime, [() => { LoadFinish(lot); }]);    
     }
 
-    protected virtual void TrackInFinish(LoadPort port, Lot lot) 
+    protected virtual void LoadFinish(Lot lot)
     {
-        if(port.Foup == null)
+        this.Entities.Add(lot); // All Lots
+        this.AssignedLots.Remove(lot);
+        this.StagedLots.Add(lot);
+
+        //LogHandler.Debug($"{Sim.Now, -11:F1} | {this.Name, -21} | {lot.Name, -21} | LoadFinish");
+
+        if(StagedLots.Count == 1)
         {
-            LogHandler.Error("There is no Foup to unload");
-            return;
+            if(Sim.Now > nextRunnableTime)
+            {
+                ProcessStart(lot);
+            }
+            else
+            {
+                Sim.Delay(nextRunnableTime - Sim.Now, [() => {ProcessStart(lot);}]);
+            }
         }
 
-        port.Foup.UnloadLot();
-        TrackingInLot = null;
-        LoadedLots.Add(lot);
-
-        if(Sim.Now > nextRunnableTime)
-        {
-            ProcessStart(lot);
-        }
-        else // Tracked In First
-        {
-            SimTime delay = Sim.Now - nextRunnableTime;
-            Sim.Delay(delay, new List<Action>() { () => { ProcessStart(lot); }});
-        }
     }
 
     protected virtual void ProcessStart(SimObject simObject)
@@ -98,17 +92,42 @@ public class Tool(Fab fab, FabHistory hist, int id, string name, ToolType type, 
         Lot? lot = simObject as Lot;
         if(lot == null)
         {
-            LogHandler.Error("Wrong Sim Object Type to process Start");
+            LogHandler.Error("ProcessStart: Wrong Sim Object Type");
+            return;
+        }
+        else if (lot.CurrentStep == null)
+        {
+            LogHandler.Error($"ProcessStart: No Current Step {lot.Name}");
             return;
         }
 
-        SimTime processingTime = lot.GetProcessingTime();
+        double processingTime = lot.GetProcessingTime();
+        if(Type is ToolType.Table)
+        {
+            if(lot.CurrentStep.ProcessingUnit is ProcessingUnit.Wafer)
+            {
+                processingTime = processingTime * lot.WafersPerLot;
+            }
+        }
+        else if(Type is ToolType.Cascade)
+        {
+            if(lot.CurrentStep.ProcessingUnit is ProcessingUnit.Wafer)
+            {
+                double interval = lot.CurrentStep.CascadingInterval.GetNumber(); // p = p + int * (w -1);
+                processingTime = processingTime + interval * (lot.WafersPerLot - 1);
+            }
+            else // p* = p * w
+                processingTime = processingTime * lot.WafersPerLot;
+        }
+
         SimTime estimatedRunTime = Sim.Now + processingTime;
 
-        this.LoadedLots.Remove(lot);
+        this.StagedLots.Remove(lot);
         this.RunningLots.Add(lot, estimatedRunTime);
 
         Sim.DelayUntil(estimatedRunTime, [() => { ProcessFinish(lot); }]);
+
+        LogHandler.Debug($"{Sim.Now, -11:F1} | {this.Name, -21} | {lot.Name, -21} | ProcessStart");
 
         // Lot Cascading Only
         if(this.Type == ToolType.Cascade && this.ToolGroup.ProcessingUnit == ProcessingUnit.Lot)
@@ -116,99 +135,37 @@ public class Tool(Fab fab, FabHistory hist, int id, string name, ToolType type, 
         else
             nextRunnableTime = estimatedRunTime;
         
-        // Next Lot Track In Request.
-        Sim.DelayUntil(nextRunnableTime - this.LoadingTime, [() => { TriggerNextTrackIn(); }]);
+        // Call next Lot
+        this.IsReserved = false;
+        Sim.MES.RequestNextLot(this);
     }
 
     protected virtual void ProcessFinish(SimObject simObject)
     {
-        Lot lot = simObject as Lot;
-        LoadPort port = GetPortHavingEmptyFoup();
+        Lot? lot = simObject as Lot;
 
-        // TBD: Lot Status
-        RunningLots.Remove(lot);
-
-        TrackOutStart(port, lot);
-    }
-
-    protected virtual void TrackOutStart(LoadPort port, Lot lot)
-    {
-        TrackingOutLot = lot;
-        Sim.Delay(this.UnloadingTime, [() => { TrackOutFinish(port, lot); }]);
-    }
-
-    protected virtual void TrackOutFinish(LoadPort port, Lot lot)
-    {
-        port.Foup.LoadLot(lot);
-        TrackingOutLot = null;
-
-        Sim.MES.SendLotToNextStep(port.Foup);
-    }
-
-    public virtual void LotLeave(LoadPort port)
-    {
-        // Request Lots.
-        Sim.MES.RequestNextLot(this);
-    }
-
-    protected virtual void JobStart(Lot lot) =>
-        throw new NotImplementedException();
-        
-    protected virtual void JobFinish(Lot lot) =>
-        throw new NotImplementedException();
-
-    protected void TriggerNextTrackIn()
-    {
-        foreach(var port in Ports)
+        if(lot == null)
         {
-            if(port.Foup != null && port.Foup.Lot != null)
-            {
-                TrackInStart(port, port.Foup.Lot);
-                break;
-            }
+            LogHandler.Error("ProcessStart: Wrong Sim Object Type");
+            return;
         }
+        if(lot.Name == "SuperHotLot_1")
+            LogHandler.Debug($"{Sim.Now, -11:F1} | {this.Name, -21} | {lot.Name, -21} | ProcessFinish");
+
+        this.RunningLots.Remove(lot);
+        this.FinishedLots.Add(lot);
+
+        Sim.Delay(this.UnloadingTime, [() => { UnloadFinish(lot); }]);    
+    }
+
+    public virtual void UnloadFinish(Lot lot)
+    {
+        this.Entities.Remove(lot);
+        this.FinishedLots.Remove(lot);
+
+        //LogHandler.Debug($"{Sim.Now, -11:F1} | {this.Name, -21} | {lot.Name, -21} | UnloadFinish");
+
+        Sim.MES.SendLotToNextStep(lot);
     }
     #endregion [Process]
-
-    #region [Port related]
-    protected LoadPort GetPortHavingEmptyFoup() =>
-        Ports.First(p => p.Foup != null && p.Foup.Lot == null);
-
-    public LoadPort GetEmptyPort() =>
-        Ports.First(p => p.Foup == null && p.ReservedFoup == null);
-    // protected Foup GetEmptyFoup()
-    // {
-    //     var port = GetPortHavingEmptyFoup();
-    //     return port.Foup;
-    // }
-
-    // protected Port FindLoadPort(Lot lot)
-    // {
-    //     foreach (var port in this.Ports)
-    //     {
-    //         if (port.Entities.Count > 0)
-    //         {
-    //             var foup = port.Entities[0] as Foup;
-    //             if (lot == foup?.Lot)
-    //                 return port;
-    //         }
-    //     }
-    //     return null;
-    // }
-    
-    // public LoadPort GetEmptyPort()
-    // {
-    //     var emptyPorts = GetPorts(PortState.Empty);
-    //     return emptyPorts.Count > 0 ? emptyPorts[0] : null;
-    // }
-
-    // protected List<LoadPort> GetPorts(PortState portToolState) =>
-    //     Ports.FindAll(p => ((PortState)p.State) ==  portToolState);
-
-    // public bool HasEmptyPorts() => GetPorts(PortToolState.Empty).Count > 0;
-    #endregion [Port related finish]
-
-    #region Status
-    public bool IsLotLoading() => TrackingInLot != null;
-    #endregion
 }

@@ -2,29 +2,26 @@ using SharpSim;
 
 namespace SMT2020;
 
-public class Transport(Fab fab, FabHistory hist, int id, string name, Dictionary<(string From, string To), Distribution> deliveryTimes) 
+public class Transport(Fab fab, FabHistory hist, int id, string name) 
     : SimNode<Fab, FabHistory>(fab, hist, id, name)
 {
-    public Dictionary<(string From, string To), Distribution> DeliveryTimes { get; } = deliveryTimes;
+    /// <summary>Set of valid location names — populated from Transport sheet (FROM ∪ TO).</summary>
+    public HashSet<string> Locations { get; } = new();
 
-    public void UnloadFinish(Foup foup)
-    {
-        this.Entities.Remove(foup);
-    }
+    public Dictionary<(string From, string To), Distribution> DeliveryTimes { get; } = new ();
 
-/// <summary>
-/// 
-/// </summary>
-/// <param name="foup"></param>
-    public void LoadFinish(Foup foup)
+    public void Delivery(string toLocation, Tool destTool, Lot lot)
     {
-        this.Entities.Add(foup);
-    }
+        double deliveryTime = 600;
+        if(DeliveryTimes.TryGetValue((lot.Location, toLocation), out Distribution? dist) && dist != null)
+        {
+            deliveryTime = dist.GetNumber();
+        }
 
-    public void Delivery(string fromLocation, string toLocation, LoadPort destPort, Foup foup)
-    {
-        this.Entities.Add(foup);
-        double deliveryTime = DeliveryTimes[(fromLocation, toLocation)].GetNumber();
-        Sim.Delay(deliveryTime, [() => {destPort.LoadStart(this, foup);}])
+        Sim.Delay(deliveryTime, [() => { 
+            lot.Location = toLocation;
+            destTool.LoadStart(this, lot);
+        } ]);
+        
     }
 }

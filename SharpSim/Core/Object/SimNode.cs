@@ -19,7 +19,7 @@ public class SimNode<TSimulation, THistory> : SimObject, ISimNode
     protected SimTime lastStateUpdatedTime;
 
     public List<SimObject> Entities { get; private set; } = new List<SimObject>();
-    public Location? Location { get; protected set; } = null;
+    public Location? MapLocation { get; protected set; } = null;
     public Enum? State { get; protected set; } = null;
 
     public SimNode(TSimulation simulation, THistory history, int id, string name) : base(id, name)
