@@ -16,7 +16,7 @@ public class Tool(Fab fab, FabHistory hist, int id, string name, ToolType type, 
     #endregion [Attributes End]
 
     #region [Lots]
-    public bool IsReserved { get; private set;} = false;
+    public bool IsReserved { get; protected set;} = false;
     public List<Lot> AssignedLots {get; private set;} = [];
     protected List<Lot> StagedLots { get; private set; } = [];
     protected Dictionary<Lot, SimTime> RunningLots { get; private set; } = new();
@@ -149,8 +149,8 @@ public class Tool(Fab fab, FabHistory hist, int id, string name, ToolType type, 
             LogHandler.Error("ProcessStart: Wrong Sim Object Type");
             return;
         }
-        if(lot.Name == "SuperHotLot_1")
-            LogHandler.Debug($"{Sim.Now, -11:F1} | {this.Name, -21} | {lot.Name, -21} | ProcessFinish");
+        
+        LogHandler.Debug($"{Sim.Now, -11:F1} | {this.Name, -21} | {lot.Name, -21} | ProcessFinish");
 
         this.RunningLots.Remove(lot);
         this.FinishedLots.Add(lot);
@@ -158,7 +158,7 @@ public class Tool(Fab fab, FabHistory hist, int id, string name, ToolType type, 
         Sim.Delay(this.UnloadingTime, [() => { UnloadFinish(lot); }]);    
     }
 
-    public virtual void UnloadFinish(Lot lot)
+    protected virtual void UnloadFinish(Lot lot)
     {
         this.Entities.Remove(lot);
         this.FinishedLots.Remove(lot);
