@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -8,13 +8,27 @@
     <PackageId>SharpSim</PackageId>
     <Version>0.1.0</Version>
     <Authors>Kwanwoo Lee</Authors>
-    <Description>Discrete Event Simulation library for .NET</Description>
+    <Company>Kwanwoo Lee</Company>
+    <Copyright>Copyright (c) 2026 Kwanwoo Lee</Copyright>
+    <Description>Discrete-event simulation library for .NET. Provides core building blocks (events, event list, simulation clock, nodes) for building custom DES models in C#.</Description>
+    <PackageTags>simulation;des;discrete-event;simulator;modeling</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/kwoo-lee/DTSim</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/kwoo-lee/DTSim</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove="Demo/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="\" />
+    <None Include="../LICENSE" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>
