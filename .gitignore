@@ -40,11 +40,6 @@ ScaffoldingReadMe.txt
 ~$*
 *~
 CodeCoverage/
-Dispatch/AutoSched/
-SMT2020/Dataset/AutoSched/
-
-#AutoShced
-*.asd
 
 # MSBuild Binary and Structured Log
 *.binlog
